@@ -44,3 +44,31 @@ export type PhaseOneGameState = {
   discardPile: CaboCard[];
 };
 
+export type DrawSource = "drawPile" | "discardPile";
+
+export type PendingDraw = {
+  card: CaboCard;
+  source: DrawSource;
+};
+
+export type CaboLastRoundState = {
+  callerPlayerId: string;
+  remainingTurns: number;
+};
+
+export type CaboPlayerScore = {
+  playerId: string;
+  playerName: string;
+  points: number;
+};
+
+export type PhaseTwoGameState = {
+  players: CaboPlayer[];
+  drawPile: CaboCard[];
+  discardPile: CaboCard[];
+  currentPlayerIndex: number;
+  pendingDraw: PendingDraw | null;
+  lastRound: CaboLastRoundState | null;
+  finalScores: CaboPlayerScore[] | null;
+  winnerPlayerIds: string[];
+};
