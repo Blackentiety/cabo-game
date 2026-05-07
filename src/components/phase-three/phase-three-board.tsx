@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import CardPile from "@/components/game/card-pile";
 import PlayingCard from "@/components/game/playing-card";
 import { getCardLabel, getCardPoints } from "@/lib/deck";
 import {
@@ -31,63 +30,81 @@ import type { CaboPlayer, PhaseThreeGameState } from "@/lib/types";
 
 const PLAYER_OPTIONS = [2, 3, 4];
 
-function getTopDiscardCard({ gameState }: { gameState: PhaseThreeGameState }) {
-  return gameState.discardPile.at(-1) ?? null;
+type PlayerSeatProps = {
+  player: CaboPlayer;
+  isCurrentPlayer: boolean;
+  revealCards: boolean;
+  selectedCardIndex?: number | null;
+  onSelectCard?: (cardIndex: number) => void;
+  pointsLabel?: string;
+};
+
+function PlayerSeat({
+  player,
+  isCurrentPlayer,
+  revealCards,
+  selectedCardIndex = null,
+  onSelectCard,
+  pointsLabel,
+}: PlayerSeatProps) {
+  return (
+    <article
+      className={`rounded-xl border p-3 ${
+        isCurrentPlayer
+          ? "border-amber-300/70 bg-amber-950/30"
+          : "border-emerald-200/20 bg-emerald-950/30"
+      }`}
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-emerald-50">{player.name}</p>
+        <p className="text-[11px] text-emerald-100/70">{pointsLabel ?? `${player.hand.length} cartes`}</p>
+      </div>
+      <div className="mx-auto grid w-fit grid-cols-2 gap-1.5">
+        {player.hand.map((card, cardIndex) => (
+          <div key={card.id} className={cardIndex < 2 ? "opacity-90" : ""}>
+            <PlayingCard
+              card={card}
+              isFaceUp={revealCards}
+              size="xs"
+              isSelectable={Boolean(onSelectCard)}
+              isSelected={selectedCardIndex === cardIndex}
+              onClick={onSelectCard ? () => onSelectCard(cardIndex) : undefined}
+            />
+          </div>
+        ))}
+      </div>
+    </article>
+  );
 }
 
 function getStatusLabel({ gameState }: { gameState: PhaseThreeGameState }) {
   if (gameState.finalScores) {
-    return "Partie terminee";
+    return "Fin de partie";
   }
 
   if (gameState.initialPeek) {
     return "Vision initiale";
   }
 
-  if (gameState.lastRound) {
-    return `Dernier tour (${gameState.lastRound.remainingTurns} tour(s) restant(s))`;
-  }
-
   if (gameState.activePowerEffect) {
     return "Pouvoir actif";
   }
 
-  return "Partie en cours";
+  if (gameState.pendingDraw) {
+    return "Carte piochée à résoudre";
+  }
+
+  if (gameState.lastRound) {
+    return `Dernier tour (${gameState.lastRound.remainingTurns})`;
+  }
+
+  return "Tour normal";
 }
 
 function getWinnerNames({ gameState }: { gameState: PhaseThreeGameState }) {
   return gameState.players
     .filter((player) => gameState.winnerPlayerIds.includes(player.id))
     .map((player) => player.name);
-}
-
-function getOpponentPlayers({
-  gameState,
-  currentPlayerId,
-}: {
-  gameState: PhaseThreeGameState;
-  currentPlayerId: string;
-}) {
-  return gameState.players.filter((player) => player.id !== currentPlayerId);
-}
-
-function getTargetPlayerForPower({
-  gameState,
-}: {
-  gameState: PhaseThreeGameState;
-}): CaboPlayer | null {
-  const activePowerEffect = gameState.activePowerEffect;
-  if (
-    !activePowerEffect ||
-    activePowerEffect.kind === "selfPeek" ||
-    !activePowerEffect.targetPlayerId
-  ) {
-    return null;
-  }
-
-  return (
-    gameState.players.find((player) => player.id === activePowerEffect.targetPlayerId) ?? null
-  );
 }
 
 function getSelectedOwnCardIndex({
@@ -124,42 +141,60 @@ function getSelectedTargetCardIndex({
   return activePowerEffect.targetCardIndex;
 }
 
-type PlayerHandProps = {
-  player: CaboPlayer;
-  isFaceUp: boolean;
-  selectedCardIndex?: number | null;
-  onSelectCard?: (cardIndex: number) => void;
-};
+function getTargetPlayerForPower({
+  gameState,
+}: {
+  gameState: PhaseThreeGameState;
+}) {
+  const activePowerEffect = gameState.activePowerEffect;
+  if (
+    !activePowerEffect ||
+    activePowerEffect.kind === "selfPeek" ||
+    !activePowerEffect.targetPlayerId
+  ) {
+    return null;
+  }
 
-function PlayerHand({
-  player,
-  isFaceUp,
-  selectedCardIndex = null,
-  onSelectCard,
-}: PlayerHandProps) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {player.hand.map((card, cardIndex) => (
-        <div key={card.id} className="space-y-1">
-          <PlayingCard
-            card={card}
-            isFaceUp={isFaceUp}
-            size="sm"
-            isSelectable={Boolean(onSelectCard)}
-            isSelected={selectedCardIndex === cardIndex}
-            onClick={onSelectCard ? () => onSelectCard(cardIndex) : undefined}
-          />
-          <p className="text-center text-[11px] text-zinc-500">Carte {cardIndex + 1}</p>
-        </div>
-      ))}
-    </div>
+    gameState.players.find((player) => player.id === activePowerEffect.targetPlayerId) ?? null
   );
 }
 
-export default function PhaseThreeBoard() {
+function getOpponentPlayers({
+  gameState,
+  currentPlayerId,
+}: {
+  gameState: PhaseThreeGameState;
+  currentPlayerId: string;
+}) {
+  return gameState.players.filter((player) => player.id !== currentPlayerId);
+}
+
+type PhaseThreeBoardProps = {
+  initialSeed: number;
+};
+
+function createSeededRandomizer({ seed }: { seed: number }) {
+  let state = (seed >>> 0) || 1;
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function createInitialGameState({ initialSeed }: { initialSeed: number }) {
+  return createPhaseThreeGame({
+    playerCount: 4,
+    randomizer: createSeededRandomizer({ seed: initialSeed }),
+  });
+}
+
+export default function PhaseThreeBoard({ initialSeed }: PhaseThreeBoardProps) {
   const [playerCount, setPlayerCount] = useState(4);
+  const [isGameStarted, setIsGameStarted] = useState(false);
   const [gameState, setGameState] = useState<PhaseThreeGameState>(() =>
-    createPhaseThreeGame({ playerCount: 4 }),
+    createInitialGameState({ initialSeed }),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [revealedInitialPeekPlayerId, setRevealedInitialPeekPlayerId] = useState<string | null>(
@@ -168,9 +203,8 @@ export default function PhaseThreeBoard() {
   const [visibleTurnKey, setVisibleTurnKey] = useState<string | null>(null);
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const winnerNames = useMemo(() => getWinnerNames({ gameState }), [gameState]);
   const isFinished = isGameFinished({ gameState });
-  const targetPlayerForPower = getTargetPlayerForPower({ gameState });
+  const winnerNames = useMemo(() => getWinnerNames({ gameState }), [gameState]);
 
   function applyGameUpdate({
     updateGameState,
@@ -190,289 +224,273 @@ export default function PhaseThreeBoard() {
   }
 
   function handleNewGame() {
+    setErrorMessage(null);
+    setRevealedInitialPeekPlayerId(null);
+    setVisibleTurnKey(null);
+    setIsGameStarted(false);
+  }
+
+  function handleStartGame() {
     setGameState(createPhaseThreeGame({ playerCount }));
     setErrorMessage(null);
     setRevealedInitialPeekPlayerId(null);
     setVisibleTurnKey(null);
+    setIsGameStarted(true);
   }
 
   if (!currentPlayer) {
     return null;
   }
 
+  const topDiscardCard = gameState.discardPile.at(-1) ?? null;
+  const initialPeekCards = gameState.initialPeek ? getInitialPeekCards({ gameState }) : [];
+  const initialPeekPlayerName =
+    gameState.players.find((player) => player.id === gameState.initialPeek?.activePlayerId)?.name ??
+    "";
+  const isInitialPeekRevealed =
+    gameState.initialPeek !== null &&
+    revealedInitialPeekPlayerId === gameState.initialPeek.activePlayerId;
+  const currentTurnKey = `${currentPlayer.id}-${gameState.turnSequence}`;
+  const isTurnVisible = isFinished || visibleTurnKey === currentTurnKey;
+  const activePowerEffect = gameState.activePowerEffect;
+  const targetPlayerForPower = getTargetPlayerForPower({ gameState });
+  const selectedOwnCardIndex = getSelectedOwnCardIndex({ gameState });
+  const selectedTargetCardIndex = getSelectedTargetCardIndex({ gameState });
   const opponentPlayers = getOpponentPlayers({
     gameState,
     currentPlayerId: currentPlayer.id,
   });
-  const initialPeekCards = gameState.initialPeek ? getInitialPeekCards({ gameState }) : [];
-  const currentTurnKey = `${currentPlayer.id}-${gameState.turnSequence}`;
-  const isTurnVisible = isFinished || visibleTurnKey === currentTurnKey;
-  const isInitialPeekRevealed =
-    gameState.initialPeek !== null &&
-    revealedInitialPeekPlayerId === gameState.initialPeek.activePlayerId;
-  const topDiscardCard = getTopDiscardCard({ gameState });
-  const selectedOwnCardIndex = getSelectedOwnCardIndex({ gameState });
-  const selectedTargetCardIndex = getSelectedTargetCardIndex({ gameState });
-  const initialPeekPlayerName =
-    gameState.players.find((player) => player.id === gameState.initialPeek?.activePlayerId)?.name ??
-    "";
+  const scoreboard = isFinished ? gameState.finalScores?.slice().sort((a, b) => a.points - b.points) : null;
+  const overlayVisible =
+    !isGameStarted || gameState.initialPeek !== null || (!isFinished && !isTurnVisible);
+
+  function getSeatCardSelector({ player }: { player: CaboPlayer }) {
+    if (gameState.pendingDraw && player.id === currentPlayer.id) {
+      return (cardIndex: number) =>
+        applyGameUpdate({
+          updateGameState: (currentState) =>
+            replaceWithPendingDraw({
+              gameState: currentState,
+              handCardIndex: cardIndex,
+            }),
+        });
+    }
+
+    if (!activePowerEffect) {
+      return undefined;
+    }
+
+    if (
+      player.id === currentPlayer.id &&
+      (activePowerEffect.kind === "selfPeek" ||
+        activePowerEffect.kind === "jackSwap" ||
+        activePowerEffect.kind === "queenSwap")
+    ) {
+      if (activePowerEffect.kind === "selfPeek" && activePowerEffect.viewedCard) {
+        return undefined;
+      }
+
+      if (activePowerEffect.kind === "queenSwap" && activePowerEffect.ownViewedCard) {
+        return undefined;
+      }
+
+      return (ownCardIndex: number) =>
+        applyGameUpdate({
+          updateGameState: (currentState) =>
+            pickOwnCardForPower({
+              gameState: currentState,
+              ownCardIndex,
+            }),
+        });
+    }
+
+    if (
+      targetPlayerForPower &&
+      targetPlayerForPower.id === player.id &&
+      (activePowerEffect.kind === "opponentPeek" ||
+        activePowerEffect.kind === "jackSwap" ||
+        activePowerEffect.kind === "queenSwap")
+    ) {
+      if (activePowerEffect.kind === "opponentPeek" && activePowerEffect.viewedCard) {
+        return undefined;
+      }
+
+      if (activePowerEffect.kind === "queenSwap" && activePowerEffect.targetViewedCard) {
+        return undefined;
+      }
+
+      return (targetCardIndex: number) =>
+        applyGameUpdate({
+          updateGameState: (currentState) =>
+            pickTargetCardForPower({
+              gameState: currentState,
+              targetCardIndex,
+            }),
+        });
+    }
+
+    return undefined;
+  }
 
   return (
-    <section className="w-full max-w-7xl space-y-6 rounded-2xl border border-emerald-900/30 bg-emerald-900 p-6 text-emerald-50 shadow-xl">
-      <header className="space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Cabo</h1>
-        <p className="text-sm text-emerald-100/90">
-          Mode pass-and-play avec cartes visuelles, vision initiale et pouvoirs.
-        </p>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            Joueurs
-            <select
-              className="rounded-md border border-emerald-200/30 bg-emerald-950/60 px-3 py-2"
-              value={playerCount}
-              onChange={(event) => setPlayerCount(Number(event.target.value))}
-            >
-              {PLAYER_OPTIONS.map((value) => (
-                <option key={value} value={value} className="text-black">
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
-            onClick={handleNewGame}
-          >
-            Nouvelle partie
-          </button>
-        </div>
-      </header>
-
-      <div className="grid gap-3 text-sm sm:grid-cols-4">
-        <div className="rounded-lg border border-emerald-200/20 bg-emerald-950/40 p-3">
-          <p className="text-emerald-100/80">Etat</p>
-          <p className="font-medium">{getStatusLabel({ gameState })}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-200/20 bg-emerald-950/40 p-3">
-          <p className="text-emerald-100/80">Joueur actif</p>
-          <p className="font-medium">{getCurrentPlayerName({ gameState })}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-200/20 bg-emerald-950/40 p-3">
-          <p className="text-emerald-100/80">Deck restant</p>
-          <p className="text-xl font-semibold">{gameState.drawPile.length}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-200/20 bg-emerald-950/40 p-3">
-          <p className="text-emerald-100/80">Defausse</p>
-          <p className="font-medium">{topDiscardCard ? getCardLabel({ card: topDiscardCard }) : "Aucune"}</p>
-        </div>
-      </div>
-
-      {errorMessage ? (
-        <p className="rounded-md border border-red-300/60 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {errorMessage}
-        </p>
-      ) : null}
-
-      {gameState.initialPeek ? (
-        <div className="space-y-4 rounded-xl border border-sky-300/40 bg-sky-950/40 p-5">
-          <h2 className="text-lg font-semibold">Vision initiale</h2>
-          <p className="text-sm text-sky-100">
-            Passe l ecran a <span className="font-semibold">{initialPeekPlayerName}</span>.
-          </p>
-          {!isInitialPeekRevealed ? (
+    <section className="relative mx-auto h-[calc(100vh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-3xl border border-emerald-200/20 bg-[radial-gradient(circle_at_center,_#12613f_0%,_#0b3f2d_55%,_#07261a_100%)] p-4 text-emerald-50 shadow-2xl">
+      <div className="grid h-full grid-rows-[auto_1fr_auto] gap-3">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-wide">CABO TABLE</h1>
+            <p className="text-xs text-emerald-100/80">{getStatusLabel({ gameState })}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-emerald-100/80">
+              Joueurs: {isGameStarted ? gameState.players.length : playerCount}
+            </p>
             <button
               type="button"
-              className="rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-400"
-              onClick={() => setRevealedInitialPeekPlayerId(gameState.initialPeek?.activePlayerId ?? null)}
+              className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
+              onClick={handleNewGame}
             >
-              Voir mes 2 cartes
+              Nouvelle partie
             </button>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-3">
-                {initialPeekCards.map((card) => (
-                  <PlayingCard key={card.id} card={card} isFaceUp />
-                ))}
-              </div>
-              <button
-                type="button"
-                className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-100"
-                onClick={() =>
-                  applyGameUpdate({
-                    updateGameState: (currentState) => completeInitialPeek({ gameState: currentState }),
-                  })
+          </div>
+        </header>
+
+        <div className="grid h-full grid-rows-[auto_1fr_auto] gap-3 overflow-hidden">
+          <div className="flex flex-wrap justify-center gap-2">
+            {opponentPlayers.map((player) => (
+              <PlayerSeat
+                key={player.id}
+                player={player}
+                isCurrentPlayer={false}
+                revealCards={isFinished}
+                selectedCardIndex={targetPlayerForPower?.id === player.id ? selectedTargetCardIndex : null}
+                onSelectCard={isTurnVisible ? getSeatCardSelector({ player }) : undefined}
+                pointsLabel={
+                  isFinished ? `${getPlayerTotalPoints({ player })} pts` : `${player.hand.length} cartes`
                 }
-              >
-                Terminer ma vision
-              </button>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {!gameState.initialPeek && !isFinished && !isTurnVisible ? (
-        <div className="space-y-3 rounded-xl border border-amber-300/50 bg-amber-950/40 p-5">
-          <h2 className="text-lg font-semibold">Passation</h2>
-          <p className="text-sm text-amber-100">
-            Passe l ecran a <span className="font-semibold">{currentPlayer.name}</span>.
-          </p>
-          <button
-            type="button"
-            className="rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-300"
-            onClick={() => setVisibleTurnKey(currentTurnKey)}
-          >
-            Commencer le tour
-          </button>
-        </div>
-      ) : null}
-
-      {!gameState.initialPeek && isTurnVisible ? (
-        <div className="space-y-6">
-          <div className="flex flex-wrap justify-center gap-8 rounded-xl border border-emerald-200/20 bg-emerald-950/40 p-4">
-            <CardPile
-              title="Deck"
-              card={gameState.drawPile.length > 0 ? gameState.drawPile[0] ?? null : null}
-              count={gameState.drawPile.length}
-              isFaceUp={false}
-              isDisabled={!canDrawCard({ gameState })}
-              onClick={() =>
-                applyGameUpdate({
-                  updateGameState: (currentState) =>
-                    drawFromSource({ gameState: currentState, source: "drawPile" }),
-                })
-              }
-            />
-            <CardPile
-              title="Defausse"
-              card={topDiscardCard}
-              count={gameState.discardPile.length}
-              isFaceUp
-              isDisabled={!canTakeDiscard({ gameState })}
-              onClick={() =>
-                applyGameUpdate({
-                  updateGameState: (currentState) =>
-                    drawFromSource({ gameState: currentState, source: "discardPile" }),
-                })
-              }
-            />
+              />
+            ))}
           </div>
 
-          {!isFinished ? (
-            <div className="space-y-4 rounded-xl border border-emerald-200/20 bg-emerald-950/40 p-4">
-              <h2 className="text-lg font-semibold">Main active: {currentPlayer.name}</h2>
-
-              {!gameState.pendingDraw && !gameState.activePowerEffect ? (
-                <div className="space-y-3">
-                  <PlayerHand player={currentPlayer} isFaceUp={false} />
-                  <div>
-                    <button
-                      type="button"
-                      className="rounded-md border border-emerald-300/70 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-800/60 disabled:opacity-50"
-                      onClick={() =>
-                        applyGameUpdate({
-                          updateGameState: (currentState) => announceCabo({ gameState: currentState }),
-                        })
-                      }
-                      disabled={!canAnnounceCabo({ gameState })}
-                    >
-                      Annoncer Cabo
-                    </button>
-                  </div>
-                </div>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-emerald-200/20 bg-emerald-950/30 p-3">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-emerald-100/80">
+                Joueur actif: {getCurrentPlayerName({ gameState })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-amber-300/70 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/60 disabled:opacity-50"
+                  disabled={!isTurnVisible || !canAnnounceCabo({ gameState })}
+                  onClick={() =>
+                    applyGameUpdate({
+                      updateGameState: (currentState) => announceCabo({ gameState: currentState }),
+                    })
+                  }
+                >
+                  Cabo
+                </button>
+              </div>
+              {errorMessage ? (
+                <p className="rounded-md border border-red-300/60 bg-red-50 px-2 py-1 text-xs text-red-700">
+                  {errorMessage}
+                </p>
               ) : null}
+            </div>
 
+            <div className="flex items-center gap-5">
+              <div className="space-y-1 text-center">
+                <p className="text-xs text-emerald-100/80">Deck</p>
+                <PlayingCard
+                  card={gameState.drawPile.length > 0 ? gameState.drawPile[0] ?? null : null}
+                  isFaceUp={false}
+                  size="sm"
+                  isSelectable={isTurnVisible && canDrawCard({ gameState })}
+                  onClick={() =>
+                    applyGameUpdate({
+                      updateGameState: (currentState) =>
+                        drawFromSource({ gameState: currentState, source: "drawPile" }),
+                    })
+                  }
+                />
+                <p className="text-[11px] text-emerald-100/70">{gameState.drawPile.length}</p>
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-xs text-emerald-100/80">Défausse</p>
+                <PlayingCard
+                  card={topDiscardCard}
+                  isFaceUp
+                  size="sm"
+                  isSelectable={isTurnVisible && canTakeDiscard({ gameState })}
+                  onClick={() =>
+                    applyGameUpdate({
+                      updateGameState: (currentState) =>
+                        drawFromSource({ gameState: currentState, source: "discardPile" }),
+                    })
+                  }
+                />
+                <p className="text-[11px] text-emerald-100/70">{gameState.discardPile.length}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-emerald-200/20 bg-emerald-950/40 p-2.5">
               {gameState.pendingDraw ? (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <p className="text-sm">Carte piochée</p>
-                    <PlayingCard card={gameState.pendingDraw.card} isFaceUp />
-                    <p className="text-xs text-emerald-100/80">
-                      {getCardLabel({ card: gameState.pendingDraw.card })} (
-                      {getCardPoints({ card: gameState.pendingDraw.card })} pts)
-                    </p>
+                <>
+                  <p className="text-xs font-semibold">Carte piochée</p>
+                  <div className="flex items-center gap-2">
+                    <PlayingCard card={gameState.pendingDraw.card} isFaceUp size="sm" />
+                    <div className="text-xs text-emerald-100/85">
+                      <p>{getCardLabel({ card: gameState.pendingDraw.card })}</p>
+                      <p>{getCardPoints({ card: gameState.pendingDraw.card })} pts</p>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      className="rounded-md border border-emerald-300/70 px-4 py-2 text-sm font-semibold hover:bg-emerald-800/60"
-                      onClick={() =>
-                        applyGameUpdate({
-                          updateGameState: (currentState) =>
-                            discardPendingDraw({ gameState: currentState }),
-                        })
-                      }
-                    >
-                      Defausser la carte piochée
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm">Choisis une carte de ta main a remplacer</p>
-                    <PlayerHand
-                      player={currentPlayer}
-                      isFaceUp={false}
-                      onSelectCard={(handCardIndex) =>
-                        applyGameUpdate({
-                          updateGameState: (currentState) =>
-                            replaceWithPendingDraw({
-                              gameState: currentState,
-                              handCardIndex,
-                            }),
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                  <button
+                    type="button"
+                    className="rounded-md border border-emerald-300/60 px-2 py-1 text-xs font-semibold hover:bg-emerald-900/60"
+                    onClick={() =>
+                      applyGameUpdate({
+                        updateGameState: (currentState) => discardPendingDraw({ gameState: currentState }),
+                      })
+                    }
+                  >
+                    Défausser la piochée
+                  </button>
+                  <p className="text-[11px] text-emerald-100/70">Clique une carte de ta main pour remplacer</p>
+                </>
               ) : null}
 
-              {gameState.activePowerEffect ? (
-                <div className="space-y-4 rounded-lg border border-indigo-300/50 bg-indigo-950/40 p-4">
-                  <h3 className="font-semibold">Resolution du pouvoir</h3>
-
-                  {gameState.activePowerEffect.kind === "selfPeek" ? (
-                    <div className="space-y-3">
-                      <p className="text-sm">7/8: choisis une de tes cartes.</p>
-                      <PlayerHand
-                        player={currentPlayer}
-                        isFaceUp={false}
-                        selectedCardIndex={selectedOwnCardIndex}
-                        onSelectCard={(ownCardIndex) =>
-                          applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              pickOwnCardForPower({
-                                gameState: currentState,
-                                ownCardIndex,
-                              }),
-                          })
-                        }
-                      />
-                      {gameState.activePowerEffect.viewedCard ? (
-                        <PlayingCard card={gameState.activePowerEffect.viewedCard} isFaceUp />
+              {activePowerEffect ? (
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold">Pouvoir actif</p>
+                  {activePowerEffect.kind === "selfPeek" ? (
+                    <>
+                      <p>7/8: clique une carte de ta main.</p>
+                      {activePowerEffect.viewedCard ? (
+                        <PlayingCard card={activePowerEffect.viewedCard} isFaceUp size="sm" />
                       ) : null}
                       <button
                         type="button"
-                        className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-400"
+                        className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
                         onClick={() =>
                           applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              completePeekPower({ gameState: currentState }),
+                            updateGameState: (currentState) => completePeekPower({ gameState: currentState }),
                           })
                         }
                       >
-                        Terminer le pouvoir
+                        Terminer
                       </button>
-                    </div>
+                    </>
                   ) : null}
 
-                  {gameState.activePowerEffect.kind === "opponentPeek" ? (
-                    <div className="space-y-3">
-                      <p className="text-sm">9/10: choisis un adversaire puis une carte.</p>
-                      <div className="flex flex-wrap gap-2">
+                  {activePowerEffect.kind === "opponentPeek" ? (
+                    <>
+                      <p>9/10: choisis un adversaire puis clique sa carte.</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {opponentPlayers.map((player) => (
                           <button
                             key={player.id}
                             type="button"
-                            className="rounded-md border border-indigo-300/60 px-3 py-2 text-sm hover:bg-indigo-900/60"
+                            className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60 disabled:opacity-50"
+                            disabled={Boolean(activePowerEffect.viewedCard)}
                             onClick={() =>
                               applyGameUpdate({
                                 updateGameState: (currentState) =>
@@ -487,65 +505,32 @@ export default function PhaseThreeBoard() {
                           </button>
                         ))}
                       </div>
-                      {targetPlayerForPower ? (
-                        <PlayerHand
-                          player={targetPlayerForPower}
-                          isFaceUp={false}
-                          selectedCardIndex={selectedTargetCardIndex}
-                          onSelectCard={(targetCardIndex) =>
-                            applyGameUpdate({
-                              updateGameState: (currentState) =>
-                                pickTargetCardForPower({
-                                  gameState: currentState,
-                                  targetCardIndex,
-                                }),
-                            })
-                          }
-                        />
-                      ) : null}
-                      {gameState.activePowerEffect.viewedCard ? (
-                        <PlayingCard card={gameState.activePowerEffect.viewedCard} isFaceUp />
+                      {activePowerEffect.viewedCard ? (
+                        <PlayingCard card={activePowerEffect.viewedCard} isFaceUp size="sm" />
                       ) : null}
                       <button
                         type="button"
-                        className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-400"
+                        className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
                         onClick={() =>
                           applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              completePeekPower({ gameState: currentState }),
+                            updateGameState: (currentState) => completePeekPower({ gameState: currentState }),
                           })
                         }
                       >
-                        Terminer le pouvoir
+                        Terminer
                       </button>
-                    </div>
+                    </>
                   ) : null}
 
-                  {gameState.activePowerEffect.kind === "jackSwap" ? (
-                    <div className="space-y-3">
-                      <p className="text-sm">Valet: echange a l aveugle.</p>
-                      <p className="text-xs text-indigo-100/80">1) Ta carte</p>
-                      <PlayerHand
-                        player={currentPlayer}
-                        isFaceUp={false}
-                        selectedCardIndex={selectedOwnCardIndex}
-                        onSelectCard={(ownCardIndex) =>
-                          applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              pickOwnCardForPower({
-                                gameState: currentState,
-                                ownCardIndex,
-                              }),
-                          })
-                        }
-                      />
-                      <p className="text-xs text-indigo-100/80">2) Adversaire</p>
-                      <div className="flex flex-wrap gap-2">
+                  {activePowerEffect.kind === "jackSwap" ? (
+                    <>
+                      <p>Valet: clique ta carte, choisis un adversaire, clique sa carte.</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {opponentPlayers.map((player) => (
                           <button
                             key={player.id}
                             type="button"
-                            className="rounded-md border border-indigo-300/60 px-3 py-2 text-sm hover:bg-indigo-900/60"
+                            className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
                             onClick={() =>
                               applyGameUpdate({
                                 updateGameState: (currentState) =>
@@ -560,117 +545,69 @@ export default function PhaseThreeBoard() {
                           </button>
                         ))}
                       </div>
-                      {targetPlayerForPower ? (
-                        <>
-                          <p className="text-xs text-indigo-100/80">3) Sa carte</p>
-                          <PlayerHand
-                            player={targetPlayerForPower}
-                            isFaceUp={false}
-                            selectedCardIndex={selectedTargetCardIndex}
-                            onSelectCard={(targetCardIndex) =>
-                              applyGameUpdate({
-                                updateGameState: (currentState) =>
-                                  pickTargetCardForPower({
-                                    gameState: currentState,
-                                    targetCardIndex,
-                                  }),
-                              })
-                            }
-                          />
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-400"
-                        onClick={() =>
-                          applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              applyJackSwapPower({ gameState: currentState }),
-                          })
-                        }
-                      >
-                        Confirmer l echange
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-indigo-300/60 px-4 py-2 text-sm font-semibold hover:bg-indigo-900/60"
-                        onClick={() =>
-                          applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              skipJackSwapPower({ gameState: currentState }),
-                          })
-                        }
-                      >
-                        Ne pas utiliser le pouvoir
-                      </button>
-                    </div>
-                  ) : null}
-
-                  {gameState.activePowerEffect.kind === "queenSwap" ? (
-                    <div className="space-y-3">
-                      <p className="text-sm">Dame: regarde 2 cartes puis decide l echange.</p>
-                      <p className="text-xs text-indigo-100/80">1) Ta carte</p>
-                      <PlayerHand
-                        player={currentPlayer}
-                        isFaceUp={false}
-                        selectedCardIndex={selectedOwnCardIndex}
-                        onSelectCard={(ownCardIndex) =>
-                          applyGameUpdate({
-                            updateGameState: (currentState) =>
-                              pickOwnCardForPower({
-                                gameState: currentState,
-                                ownCardIndex,
-                              }),
-                          })
-                        }
-                      />
-                      {gameState.activePowerEffect.ownViewedCard ? (
-                        <PlayingCard card={gameState.activePowerEffect.ownViewedCard} isFaceUp />
-                      ) : null}
-                      <p className="text-xs text-indigo-100/80">2) Adversaire puis carte</p>
-                      <div className="flex flex-wrap gap-2">
-                        {opponentPlayers.map((player) => (
-                          <button
-                            key={player.id}
-                            type="button"
-                            className="rounded-md border border-indigo-300/60 px-3 py-2 text-sm hover:bg-indigo-900/60"
-                            onClick={() =>
-                              applyGameUpdate({
-                                updateGameState: (currentState) =>
-                                  pickTargetPlayerForPower({
-                                    gameState: currentState,
-                                    targetPlayerId: player.id,
-                                  }),
-                              })
-                            }
-                          >
-                            {player.name}
-                          </button>
-                        ))}
-                      </div>
-                      {targetPlayerForPower ? (
-                        <PlayerHand
-                          player={targetPlayerForPower}
-                          isFaceUp={false}
-                          selectedCardIndex={selectedTargetCardIndex}
-                          onSelectCard={(targetCardIndex) =>
-                            applyGameUpdate({
-                              updateGameState: (currentState) =>
-                                pickTargetCardForPower({
-                                  gameState: currentState,
-                                  targetCardIndex,
-                                }),
-                            })
-                          }
-                        />
-                      ) : null}
-                      {gameState.activePowerEffect.targetViewedCard ? (
-                        <PlayingCard card={gameState.activePowerEffect.targetViewedCard} isFaceUp />
-                      ) : null}
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex gap-1.5">
                         <button
                           type="button"
-                          className="rounded-md bg-indigo-500 px-4 py-2 text-sm font-semibold text-indigo-950 hover:bg-indigo-400"
+                          className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
+                          onClick={() =>
+                            applyGameUpdate({
+                              updateGameState: (currentState) => applyJackSwapPower({ gameState: currentState }),
+                            })
+                          }
+                        >
+                          Confirmer
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
+                          onClick={() =>
+                            applyGameUpdate({
+                              updateGameState: (currentState) => skipJackSwapPower({ gameState: currentState }),
+                            })
+                          }
+                        >
+                          Ignorer
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {activePowerEffect.kind === "queenSwap" ? (
+                    <>
+                      <p>Dame: clique ta carte, choisis un adversaire, clique sa carte.</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {opponentPlayers.map((player) => (
+                          <button
+                            key={player.id}
+                            type="button"
+                            className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60 disabled:opacity-50"
+                            disabled={Boolean(activePowerEffect.targetViewedCard)}
+                            onClick={() =>
+                              applyGameUpdate({
+                                updateGameState: (currentState) =>
+                                  pickTargetPlayerForPower({
+                                    gameState: currentState,
+                                    targetPlayerId: player.id,
+                                  }),
+                              })
+                            }
+                          >
+                            {player.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {activePowerEffect.ownViewedCard ? (
+                          <PlayingCard card={activePowerEffect.ownViewedCard} isFaceUp size="xs" />
+                        ) : null}
+                        {activePowerEffect.targetViewedCard ? (
+                          <PlayingCard card={activePowerEffect.targetViewedCard} isFaceUp size="xs" />
+                        ) : null}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
                           onClick={() =>
                             applyGameUpdate({
                               updateGameState: (currentState) =>
@@ -678,11 +615,11 @@ export default function PhaseThreeBoard() {
                             })
                           }
                         >
-                          Echanger
+                          Échanger
                         </button>
                         <button
                           type="button"
-                          className="rounded-md border border-indigo-300/60 px-4 py-2 text-sm font-semibold hover:bg-indigo-900/60"
+                          className="rounded-md border border-indigo-300/60 px-2 py-1 font-semibold hover:bg-indigo-900/60"
                           onClick={() =>
                             applyGameUpdate({
                               updateGameState: (currentState) =>
@@ -690,55 +627,132 @@ export default function PhaseThreeBoard() {
                             })
                           }
                         >
-                          Ne pas echanger
+                          Garder
                         </button>
                       </div>
-                    </div>
+                    </>
                   ) : null}
                 </div>
               ) : null}
-            </div>
-          ) : null}
 
-          <div className="space-y-3 rounded-xl border border-emerald-200/20 bg-emerald-950/40 p-4">
-            <h2 className="text-lg font-semibold">Table</h2>
-            <div className="grid gap-3 md:grid-cols-2">
-              {gameState.players.map((player) => (
-                <article
-                  key={player.id}
-                  className={`space-y-2 rounded-lg border p-3 ${
-                    player.id === currentPlayer.id
-                      ? "border-amber-300/70 bg-amber-950/30"
-                      : "border-emerald-200/20 bg-emerald-950/30"
-                  }`}
-                >
-                  <p className="font-semibold">{player.name}</p>
-                  <p className="text-xs text-emerald-100/70">
-                    {player.hand.length} cartes
-                    {isFinished ? ` - ${getPlayerTotalPoints({ player })} pts` : ""}
-                  </p>
-                  <PlayerHand player={player} isFaceUp={isFinished} />
-                </article>
-              ))}
+              {!gameState.pendingDraw && !activePowerEffect ? (
+                <p className="text-xs text-emerald-100/70">Main en carré: 2 derrière, 2 devant.</p>
+              ) : null}
             </div>
           </div>
 
-          {isFinished && gameState.finalScores ? (
-            <div className="space-y-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-900">
-              <h2 className="text-lg font-semibold">Fin de partie</h2>
-              <p className="text-sm">Gagnant(s): {winnerNames.join(", ")}</p>
-              <div className="grid gap-2 text-sm">
-                {gameState.finalScores
-                  .slice()
-                  .sort((firstScore, secondScore) => firstScore.points - secondScore.points)
-                  .map((score) => (
-                    <p key={score.playerId}>
-                      {score.playerName}: <span className="font-semibold">{score.points}</span> pts
-                    </p>
+          <PlayerSeat
+            player={currentPlayer}
+            isCurrentPlayer
+            revealCards={isFinished}
+            selectedCardIndex={selectedOwnCardIndex}
+            onSelectCard={isTurnVisible ? getSeatCardSelector({ player: currentPlayer }) : undefined}
+            pointsLabel={
+              isFinished
+                ? `${getPlayerTotalPoints({ player: currentPlayer })} pts`
+                : `${currentPlayer.hand.length} cartes`
+            }
+          />
+        </div>
+      </div>
+
+      {overlayVisible ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+          {!isGameStarted ? (
+            <div className="w-full max-w-sm space-y-3 rounded-2xl border border-emerald-200/40 bg-emerald-950/95 p-5 text-center">
+              <h2 className="text-lg font-semibold">Nouvelle partie</h2>
+              <p className="text-sm text-emerald-100">Choisis le nombre de joueurs avant de lancer.</p>
+              <label className="mx-auto flex w-fit items-center gap-2 text-sm">
+                <span>Joueurs</span>
+                <select
+                  className="rounded-md border border-emerald-200/30 bg-emerald-900/70 px-3 py-1.5"
+                  value={playerCount}
+                  onChange={(event) => setPlayerCount(Number(event.target.value))}
+                >
+                  {PLAYER_OPTIONS.map((value) => (
+                    <option key={value} value={value} className="text-black">
+                      {value}
+                    </option>
                   ))}
-              </div>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"
+                onClick={handleStartGame}
+              >
+                Lancer la partie
+              </button>
             </div>
-          ) : null}
+          ) : gameState.initialPeek ? (
+            <div className="w-full max-w-md space-y-3 rounded-2xl border border-sky-200/40 bg-sky-950/95 p-5 text-center">
+              <h2 className="text-lg font-semibold">Vision initiale</h2>
+              <p className="text-sm text-sky-100">Passe l écran à {initialPeekPlayerName}</p>
+              {!isInitialPeekRevealed ? (
+                <button
+                  type="button"
+                  className="rounded-md bg-sky-400 px-4 py-2 text-sm font-semibold text-sky-950 hover:bg-sky-300"
+                  onClick={() => setRevealedInitialPeekPlayerId(gameState.initialPeek?.activePlayerId ?? null)}
+                >
+                  Voir mes 2 cartes
+                </button>
+              ) : (
+                <>
+                  <div className="flex justify-center gap-2">
+                    {initialPeekCards.map((card) => (
+                      <PlayingCard key={card.id} card={card} isFaceUp size="sm" />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-100"
+                    onClick={() =>
+                      applyGameUpdate({
+                        updateGameState: (currentState) => completeInitialPeek({ gameState: currentState }),
+                      })
+                    }
+                  >
+                    Terminer
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="w-full max-w-sm space-y-3 rounded-2xl border border-amber-200/40 bg-amber-950/95 p-5 text-center">
+              <h2 className="text-lg font-semibold">Passation</h2>
+              <p className="text-sm text-amber-100">Passe l écran à {currentPlayer.name}</p>
+              <button
+                type="button"
+                className="rounded-md bg-amber-300 px-4 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-200"
+                onClick={() => setVisibleTurnKey(currentTurnKey)}
+              >
+                Commencer le tour
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {isFinished && scoreboard ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+          <div className="w-full max-w-sm space-y-2 rounded-2xl border border-emerald-200/50 bg-emerald-50 p-5 text-emerald-900">
+            <h2 className="text-lg font-semibold">Résultat</h2>
+            <p className="text-sm">Gagnant(s): {winnerNames.join(", ")}</p>
+            <div className="space-y-1 text-sm">
+              {scoreboard.map((score) => (
+                <p key={score.playerId}>
+                  {score.playerName}: <span className="font-semibold">{score.points}</span> pts
+                </p>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="mt-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+              onClick={handleNewGame}
+            >
+              Nouvelle partie
+            </button>
+          </div>
         </div>
       ) : null}
     </section>

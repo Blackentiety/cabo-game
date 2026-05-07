@@ -586,6 +586,10 @@ export function pickOwnCardForPower({
   }
 
   if (activePowerEffect.kind === "selfPeek") {
+    if (activePowerEffect.selectedOwnCardIndex !== null || activePowerEffect.viewedCard) {
+      throw new Error("Own card is already selected for self peek");
+    }
+
     return {
       ...gameState,
       activePowerEffect: {
@@ -607,6 +611,10 @@ export function pickOwnCardForPower({
   }
 
   if (activePowerEffect.kind === "queenSwap") {
+    if (activePowerEffect.ownCardIndex !== null || activePowerEffect.ownViewedCard) {
+      throw new Error("Own card is already selected for queen power");
+    }
+
     return {
       ...gameState,
       activePowerEffect: {
@@ -642,6 +650,10 @@ export function pickTargetPlayerForPower({
   }
 
   if (activePowerEffect.kind === "opponentPeek") {
+    if (activePowerEffect.targetCardIndex !== null || activePowerEffect.viewedCard) {
+      throw new Error("Opponent card is already selected for opponent peek");
+    }
+
     return {
       ...gameState,
       activePowerEffect: {
@@ -665,6 +677,10 @@ export function pickTargetPlayerForPower({
   }
 
   if (activePowerEffect.kind === "queenSwap") {
+    if (activePowerEffect.targetCardIndex !== null || activePowerEffect.targetViewedCard) {
+      throw new Error("Target card is already selected for queen power");
+    }
+
     return {
       ...gameState,
       activePowerEffect: {
@@ -696,6 +712,9 @@ export function pickTargetCardForPower({
   if (activePowerEffect.kind === "opponentPeek") {
     if (!activePowerEffect.targetPlayerId) {
       throw new Error("Select a target player first");
+    }
+    if (activePowerEffect.targetCardIndex !== null || activePowerEffect.viewedCard) {
+      throw new Error("Opponent card is already selected for opponent peek");
     }
     const targetPlayer = getPlayerById({
       gameState,
@@ -739,6 +758,9 @@ export function pickTargetCardForPower({
   if (activePowerEffect.kind === "queenSwap") {
     if (!activePowerEffect.targetPlayerId) {
       throw new Error("Select a target player first");
+    }
+    if (activePowerEffect.targetCardIndex !== null || activePowerEffect.targetViewedCard) {
+      throw new Error("Target card is already selected for queen power");
     }
     const targetPlayer = getPlayerById({
       gameState,

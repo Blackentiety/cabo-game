@@ -1,6 +1,6 @@
 import type { CaboCard } from "@/lib/types";
 
-type CardSize = "sm" | "md";
+type CardSize = "xs" | "sm" | "md";
 
 type PlayingCardProps = {
   card: CaboCard | null;
@@ -12,6 +12,7 @@ type PlayingCardProps = {
 };
 
 const cardSizeClassName: Record<CardSize, string> = {
+  xs: "h-20 w-14 text-[10px]",
   sm: "h-24 w-16 text-xs",
   md: "h-32 w-24 text-sm",
 };
