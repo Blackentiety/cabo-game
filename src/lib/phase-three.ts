@@ -838,6 +838,29 @@ export function applyJackSwapPower({
   });
 }
 
+export function skipJackSwapPower({
+  gameState,
+}: {
+  gameState: PhaseThreeGameState;
+}): PhaseThreeGameState {
+  ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
+  ensureNoPendingDraw({ gameState });
+  ensureActivePowerEffect({ gameState });
+
+  const activePowerEffect = gameState.activePowerEffect;
+  if (!activePowerEffect || activePowerEffect.kind !== "jackSwap") {
+    throw new Error("No active jack power");
+  }
+
+  return advanceAfterResolvedTurn({
+    gameState: {
+      ...gameState,
+      activePowerEffect: null,
+    },
+  });
+}
+
 export function applyQueenSwapPower({
   gameState,
   shouldSwap,

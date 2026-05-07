@@ -25,6 +25,7 @@ import {
   pickTargetCardForPower,
   pickTargetPlayerForPower,
   replaceWithPendingDraw,
+  skipJackSwapPower,
 } from "@/lib/phase-three";
 import type { CaboPlayer, PhaseThreeGameState } from "@/lib/types";
 
@@ -589,6 +590,18 @@ export default function PhaseThreeBoard() {
                         }
                       >
                         Confirmer l echange
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-indigo-300/60 px-4 py-2 text-sm font-semibold hover:bg-indigo-900/60"
+                        onClick={() =>
+                          applyGameUpdate({
+                            updateGameState: (currentState) =>
+                              skipJackSwapPower({ gameState: currentState }),
+                          })
+                        }
+                      >
+                        Ne pas utiliser le pouvoir
                       </button>
                     </div>
                   ) : null}
