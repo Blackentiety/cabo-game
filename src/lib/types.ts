@@ -72,3 +72,54 @@ export type PhaseTwoGameState = {
   finalScores: CaboPlayerScore[] | null;
   winnerPlayerIds: string[];
 };
+
+export type SelfPeekPowerEffect = {
+  kind: "selfPeek";
+  viewerPlayerId: string;
+  selectedOwnCardIndex: number | null;
+  viewedCard: CaboCard | null;
+};
+
+export type OpponentPeekPowerEffect = {
+  kind: "opponentPeek";
+  viewerPlayerId: string;
+  targetPlayerId: string | null;
+  targetCardIndex: number | null;
+  viewedCard: CaboCard | null;
+};
+
+export type JackSwapPowerEffect = {
+  kind: "jackSwap";
+  playerId: string;
+  ownCardIndex: number | null;
+  targetPlayerId: string | null;
+  targetCardIndex: number | null;
+};
+
+export type QueenSwapPowerEffect = {
+  kind: "queenSwap";
+  playerId: string;
+  ownCardIndex: number | null;
+  ownViewedCard: CaboCard | null;
+  targetPlayerId: string | null;
+  targetCardIndex: number | null;
+  targetViewedCard: CaboCard | null;
+};
+
+export type ActivePowerEffect =
+  | SelfPeekPowerEffect
+  | OpponentPeekPowerEffect
+  | JackSwapPowerEffect
+  | QueenSwapPowerEffect;
+
+export type PhaseThreeGameState = {
+  players: CaboPlayer[];
+  drawPile: CaboCard[];
+  discardPile: CaboCard[];
+  currentPlayerIndex: number;
+  pendingDraw: PendingDraw | null;
+  activePowerEffect: ActivePowerEffect | null;
+  lastRound: CaboLastRoundState | null;
+  finalScores: CaboPlayerScore[] | null;
+  winnerPlayerIds: string[];
+};
