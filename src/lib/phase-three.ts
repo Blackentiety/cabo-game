@@ -54,6 +54,12 @@ function ensureGameInProgress({ gameState }: { gameState: PhaseThreeGameState })
   }
 }
 
+function ensureInitialPeekCompleted({ gameState }: { gameState: PhaseThreeGameState }) {
+  if (gameState.initialPeek !== null) {
+    throw new Error("Initial peek phase is not finished");
+  }
+}
+
 function ensureNoPendingDraw({ gameState }: { gameState: PhaseThreeGameState }) {
   if (gameState.pendingDraw) {
     throw new Error("Current player must resolve the drawn card first");
@@ -85,6 +91,7 @@ function getNextPlayerIndex({ gameState }: { gameState: PhaseThreeGameState }) {
 function moveToNextPlayer({ gameState }: { gameState: PhaseThreeGameState }): PhaseThreeGameState {
   return {
     ...gameState,
+    turnSequence: gameState.turnSequence + 1,
     currentPlayerIndex: getNextPlayerIndex({ gameState }),
   };
 }
@@ -340,6 +347,11 @@ export function createPhaseThreeGame({
 
   return {
     ...baseGameState,
+    initialPeek: {
+      activePlayerId: baseGameState.players[0]?.id ?? "",
+      remainingPlayerIds: baseGameState.players.map((player) => player.id),
+    },
+    turnSequence: 0,
     currentPlayerIndex: 0,
     pendingDraw: null,
     activePowerEffect: null,
@@ -349,12 +361,65 @@ export function createPhaseThreeGame({
   };
 }
 
+export function getInitialPeekCards({
+  gameState,
+}: {
+  gameState: PhaseThreeGameState;
+}) {
+  if (!gameState.initialPeek) {
+    throw new Error("Initial peek phase is already finished");
+  }
+
+  const player = getPlayerById({
+    gameState,
+    playerId: gameState.initialPeek.activePlayerId,
+  });
+
+  return player.hand.slice(0, 2);
+}
+
+export function completeInitialPeek({
+  gameState,
+}: {
+  gameState: PhaseThreeGameState;
+}): PhaseThreeGameState {
+  ensureGameInProgress({ gameState });
+
+  const initialPeek = gameState.initialPeek;
+  if (!initialPeek) {
+    throw new Error("Initial peek phase is already finished");
+  }
+
+  const [, ...nextRemainingPlayerIds] = initialPeek.remainingPlayerIds;
+  if (nextRemainingPlayerIds.length === 0) {
+    return {
+      ...gameState,
+      initialPeek: null,
+      currentPlayerIndex: 0,
+    };
+  }
+
+  const nextActivePlayerId = nextRemainingPlayerIds[0];
+  if (!nextActivePlayerId) {
+    throw new Error("Next player is missing");
+  }
+
+  return {
+    ...gameState,
+    initialPeek: {
+      activePlayerId: nextActivePlayerId,
+      remainingPlayerIds: nextRemainingPlayerIds,
+    },
+  };
+}
+
 export function drawFromSource({
   gameState,
   source,
   randomizer = Math.random,
 }: DrawFromSourceOptions): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureNoActivePowerEffect({ gameState });
 
@@ -393,6 +458,7 @@ export function replaceWithPendingDraw({
   handCardIndex,
 }: ReplacePendingDrawOptions): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensurePendingDrawExists({ gameState });
   ensureNoActivePowerEffect({ gameState });
 
@@ -430,6 +496,7 @@ export function discardPendingDraw({
   gameState: PhaseThreeGameState;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensurePendingDrawExists({ gameState });
   ensureNoActivePowerEffect({ gameState });
 
@@ -469,6 +536,7 @@ export function announceCabo({
   gameState: PhaseThreeGameState;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureNoActivePowerEffect({ gameState });
 
@@ -502,6 +570,7 @@ export function pickOwnCardForPower({
   ownCardIndex: number;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -556,6 +625,7 @@ export function pickTargetPlayerForPower({
   targetPlayerId,
 }: PickTargetPlayerOptions): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -614,6 +684,7 @@ export function pickTargetCardForPower({
   targetCardIndex,
 }: PickTargetCardOptions): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -696,6 +767,7 @@ export function completePeekPower({
   gameState: PhaseThreeGameState;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -734,6 +806,7 @@ export function applyJackSwapPower({
   gameState: PhaseThreeGameState;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -773,6 +846,7 @@ export function applyQueenSwapPower({
   shouldSwap: boolean;
 }): PhaseThreeGameState {
   ensureGameInProgress({ gameState });
+  ensureInitialPeekCompleted({ gameState });
   ensureNoPendingDraw({ gameState });
   ensureActivePowerEffect({ gameState });
 
@@ -831,6 +905,7 @@ export function canDrawCard({
 }) {
   if (
     isGameFinished({ gameState }) ||
+    gameState.initialPeek !== null ||
     gameState.pendingDraw !== null ||
     gameState.activePowerEffect !== null
   ) {
@@ -847,6 +922,7 @@ export function canTakeDiscard({
 }) {
   if (
     isGameFinished({ gameState }) ||
+    gameState.initialPeek !== null ||
     gameState.pendingDraw !== null ||
     gameState.activePowerEffect !== null
   ) {
@@ -866,6 +942,7 @@ export function canAnnounceCabo({
   }
 
   return (
+    gameState.initialPeek === null &&
     gameState.pendingDraw === null &&
     gameState.activePowerEffect === null &&
     gameState.lastRound === null

@@ -116,6 +116,11 @@ export type PhaseThreeGameState = {
   players: CaboPlayer[];
   drawPile: CaboCard[];
   discardPile: CaboCard[];
+  initialPeek: {
+    activePlayerId: string;
+    remainingPlayerIds: string[];
+  } | null;
+  turnSequence: number;
   currentPlayerIndex: number;
   pendingDraw: PendingDraw | null;
   activePowerEffect: ActivePowerEffect | null;
