@@ -333,7 +333,7 @@ export default function PhaseThreeBoard({ initialSeed }: PhaseThreeBoardProps) {
   }
 
   return (
-    <section className="relative mx-auto h-[calc(100vh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-3xl border border-emerald-200/20 bg-[radial-gradient(circle_at_center,_#12613f_0%,_#0b3f2d_55%,_#07261a_100%)] p-4 text-emerald-50 shadow-2xl">
+    <section className="relative mx-auto h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-3xl border border-emerald-200/20 bg-[radial-gradient(circle_at_center,_#12613f_0%,_#0b3f2d_55%,_#07261a_100%)] p-4 text-emerald-50 shadow-2xl">
       <div className="grid h-full grid-rows-[auto_1fr_auto] gap-3">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -657,7 +657,7 @@ export default function PhaseThreeBoard({ initialSeed }: PhaseThreeBoardProps) {
       </div>
 
       {overlayVisible ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3">
           {!isGameStarted ? (
             <div className="w-full max-w-sm space-y-3 rounded-2xl border border-emerald-200/40 bg-emerald-950/95 p-5 text-center">
               <h2 className="text-lg font-semibold">Nouvelle partie</h2>
@@ -734,7 +734,7 @@ export default function PhaseThreeBoard({ initialSeed }: PhaseThreeBoardProps) {
       ) : null}
 
       {isFinished && scoreboard ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3">
           <div className="w-full max-w-sm space-y-2 rounded-2xl border border-emerald-200/50 bg-emerald-50 p-5 text-emerald-900">
             <h2 className="text-lg font-semibold">Résultat</h2>
             <p className="text-sm">Gagnant(s): {winnerNames.join(", ")}</p>
